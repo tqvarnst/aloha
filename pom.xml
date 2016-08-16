@@ -46,7 +46,7 @@
 		<vertx.version>3.2.1</vertx.version>
 		<hystrix.version>1.5.1</hystrix.version>
 		<version.exec.plugin>1.4.0</version.exec.plugin>
-		<brave.version>3.5.0</brave.version>
+		<brave.version>3.9.1</brave.version>
 
 		<!-- fabric8 version -->
 		<fabric8.version>2.2.105</fabric8.version>
@@ -119,17 +119,17 @@
 
 		<!-- Brave Zipkin -->
 		<dependency>
-			<groupId>com.github.kristofa</groupId>
+			<groupId>io.zipkin.brave</groupId>
 			<artifactId>brave-web-servlet-filter</artifactId>
 			<version>${brave.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>com.github.kristofa</groupId>
+			<groupId>io.zipkin.brave</groupId>
 			<artifactId>brave-apache-http-interceptors</artifactId>
 			<version>${brave.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>com.github.kristofa</groupId>
+			<groupId>io.zipkin.brave</groupId>
 			<artifactId>brave-spancollector-http</artifactId>
 			<version>${brave.version}</version>
 		</dependency>

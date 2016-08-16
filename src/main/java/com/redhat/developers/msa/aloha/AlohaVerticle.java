@@ -28,7 +28,6 @@ import com.github.kristofa.brave.EmptySpanCollectorMetricsHandler;
 import com.github.kristofa.brave.ServerSpan;
 import com.github.kristofa.brave.http.DefaultSpanNameProvider;
 import com.github.kristofa.brave.http.HttpSpanCollector;
-import com.github.kristofa.brave.http.StringServiceNameProvider;
 import com.github.kristofa.brave.httpclient.BraveHttpRequestInterceptor;
 import com.github.kristofa.brave.httpclient.BraveHttpResponseInterceptor;
 
@@ -115,14 +114,15 @@ public class AlohaVerticle extends AbstractVerticle {
      */
     private BonjourService getNextService() {
         final Brave brave = new Brave.Builder("aloha")
-            .spanCollector(HttpSpanCollector.create("http://zipkin-query:9411", new EmptySpanCollectorMetricsHandler()))
+            .spanCollector(HttpSpanCollector.create(System.getenv("ZIPKIN_SERVER_URL"),
+            		new EmptySpanCollectorMetricsHandler()))
             .build();
         final String serviceName = "bonjour";
         // This stores the Original/Parent ServerSpan from ZiPkin.
         final ServerSpan serverSpan = brave.serverSpanThreadBinder().getCurrentServerSpan();
         final CloseableHttpClient httpclient =
             HttpClients.custom()
-                .addInterceptorFirst(new BraveHttpRequestInterceptor(brave.clientRequestInterceptor(), new StringServiceNameProvider(serviceName), new DefaultSpanNameProvider()))
+                .addInterceptorFirst(new BraveHttpRequestInterceptor(brave.clientRequestInterceptor(), new DefaultSpanNameProvider()))
                 .addInterceptorFirst(new BraveHttpResponseInterceptor(brave.clientResponseInterceptor()))
                 .build();
         final String url = String.format("http://%s:8080/", serviceName);

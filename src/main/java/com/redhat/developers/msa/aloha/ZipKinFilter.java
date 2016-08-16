@@ -36,7 +36,8 @@ public class ZipKinFilter implements ServletContextListener {
     @Override
     public void contextInitialized(ServletContextEvent sce) {
         Brave brave = new Brave.Builder("aloha")
-            .spanCollector(HttpSpanCollector.create("http://zipkin-query:9411", new EmptySpanCollectorMetricsHandler()))
+            .spanCollector(HttpSpanCollector.create(System.getenv("ZIPKIN_SERVER_URL"),
+            		new EmptySpanCollectorMetricsHandler()))
             .build();
         Dynamic filterRegistration = sce.getServletContext().addFilter("BraveServletFilter",
             new BraveServletFilter(brave.serverRequestInterceptor(), brave.serverResponseInterceptor(), new DefaultSpanNameProvider()));
