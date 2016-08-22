@@ -22,7 +22,7 @@ node {
     deployAloha('helloworld-msa-dev', 'helloworld-msa-qa')
 
     stage 'Wait for approval'
-    input 'Aprove to production?'
+    input 'Approve to production?'
 
     stage 'Deploy to production'
     echo 'Deploying to production'
