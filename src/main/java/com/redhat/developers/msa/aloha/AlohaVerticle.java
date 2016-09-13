@@ -25,8 +25,12 @@ import org.apache.http.impl.client.HttpClients;
 import com.github.kennedyoliveira.hystrix.contrib.vertx.metricsstream.EventMetricsStreamHandler;
 import com.github.kristofa.brave.Brave;
 import com.github.kristofa.brave.EmptySpanCollectorMetricsHandler;
+import com.github.kristofa.brave.ServerRequestInterceptor;
+import com.github.kristofa.brave.ServerResponseInterceptor;
 import com.github.kristofa.brave.ServerSpan;
 import com.github.kristofa.brave.http.DefaultSpanNameProvider;
+import com.github.kristofa.brave.http.HttpServerRequestAdapter;
+import com.github.kristofa.brave.http.HttpServerResponseAdapter;
 import com.github.kristofa.brave.http.HttpSpanCollector;
 import com.github.kristofa.brave.httpclient.BraveHttpRequestInterceptor;
 import com.github.kristofa.brave.httpclient.BraveHttpResponseInterceptor;
@@ -40,46 +44,49 @@ import io.vertx.core.Handler;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 
 public class AlohaVerticle extends AbstractVerticle {
+    private static final Brave BRAVE = new Brave.Builder("aloha")
+            .spanCollector(HttpSpanCollector.create(System.getenv("ZIPKIN_SERVER_URL"), new EmptySpanCollectorMetricsHandler()))
+            .build();
 
     @Override
     public void start() throws Exception {
         Router router = Router.router(vertx);
+        router.route().handler(ctx -> {
+            // note: this is *not* an example of how to properly integrate vert.x with zipkin
+            // for a more appropriate way to do that, check the vert.x documentation
+            ServerRequestInterceptor serverRequestInterceptor = BRAVE.serverRequestInterceptor();
+            serverRequestInterceptor.handle(new HttpServerRequestAdapter(new VertxHttpServerRequest(ctx.request()), new DefaultSpanNameProvider()));
+            ctx.data().put("zipkin.span", BRAVE.serverSpanThreadBinder().getCurrentServerSpan());
+            ctx.next();
+            ctx.addBodyEndHandler(v -> BRAVE.serverResponseInterceptor().handle(new HttpServerResponseAdapter(() -> ctx.response().getStatusCode())));
+        });
         router.route().handler(BodyHandler.create());
         router.route().handler(CorsHandler.create("*")
             .allowedMethod(HttpMethod.GET)
             .allowedHeader("Content-Type"));
 
         // Aloha EndPoint
-        router.get("/api/aloha").handler(ctx -> {
-            ctx.response().end(aloha());
-        });
+        router.get("/api/aloha").handler(ctx -> ctx.response().end(aloha()));
 
         // Aloha Chained Endpoint
-        router.get("/api/aloha-chaining").handler(ctx -> {
-            alohaChaining(list -> {
-                ctx.response()
-                    .putHeader("Content-Type", "application/json")
-                    .end(Json.encode(list));
-            });
-        });
+        router.get("/api/aloha-chaining").handler(ctx -> alohaChaining(ctx, (list) -> ctx.response()
+            .putHeader("Content-Type", "application/json")
+            .end(Json.encode(list))));
 
         // Health Check
-        router.get("/api/health").handler(ctx -> {
-            ctx.response().end("I'm ok");
-        });
+        router.get("/api/health").handler(ctx -> ctx.response().end("I'm ok"));
 
         // Hysrix Stream Endpoint
-        router.get(EventMetricsStreamHandler.DEFAULT_HYSTRIX_PREFIX)
-            .handler(EventMetricsStreamHandler.createHandler());
+        router.get(EventMetricsStreamHandler.DEFAULT_HYSTRIX_PREFIX).handler(EventMetricsStreamHandler.createHandler());
 
         // Static content
         router.route("/*").handler(StaticHandler.create());
-
 
         vertx.createHttpServer().requestHandler(router::accept).listen(8080);
         System.out.println("Service running at 0.0.0.0:8080");
@@ -90,10 +97,10 @@ public class AlohaVerticle extends AbstractVerticle {
         return String.format("Aloha mai %s", hostname);
     }
 
-    private void alohaChaining(Handler<List<String>> resultHandler) {
+    private void alohaChaining(RoutingContext context, Handler<List<String>> resultHandler) {
         vertx.<String> executeBlocking(
             // Invoke the service in a worker thread, as it's blocking.
-            future -> future.complete(getNextService().bonjour()),
+            future -> future.complete(getNextService(context).bonjour()),
             ar -> {
                 // Back to the event loop
                 // result cannot be null, hystrix would have called the fallback.
@@ -103,7 +110,6 @@ public class AlohaVerticle extends AbstractVerticle {
                 greetings.add(result);
                 resultHandler.handle(greetings);
             });
-
     }
 
     /**
@@ -112,25 +118,22 @@ public class AlohaVerticle extends AbstractVerticle {
      *
      * @return The feign pointing to the service URL and with Hystrix fallback.
      */
-    private BonjourService getNextService() {
-        final Brave brave = new Brave.Builder("aloha")
-            .spanCollector(HttpSpanCollector.create(System.getenv("ZIPKIN_SERVER_URL"),
-            		new EmptySpanCollectorMetricsHandler()))
-            .build();
+    private BonjourService getNextService(RoutingContext context) {
         final String serviceName = "bonjour";
         // This stores the Original/Parent ServerSpan from ZiPkin.
-        final ServerSpan serverSpan = brave.serverSpanThreadBinder().getCurrentServerSpan();
+        final ServerSpan serverSpan = (ServerSpan) context.data().get("zipkin.span");
         final CloseableHttpClient httpclient =
             HttpClients.custom()
-                .addInterceptorFirst(new BraveHttpRequestInterceptor(brave.clientRequestInterceptor(), new DefaultSpanNameProvider()))
-                .addInterceptorFirst(new BraveHttpResponseInterceptor(brave.clientResponseInterceptor()))
+                .addInterceptorFirst(new BraveHttpRequestInterceptor(BRAVE.clientRequestInterceptor(), new DefaultSpanNameProvider()))
+                .addInterceptorFirst(new BraveHttpResponseInterceptor(BRAVE.clientResponseInterceptor()))
                 .build();
         final String url = String.format("http://%s:8080/", serviceName);
         return HystrixFeign.builder()
             // Use apache HttpClient which contains the ZipKin Interceptors
             .client(new ApacheHttpClient(httpclient))
-            // Bind Zipkin Server Span to Feign Thread
-            .requestInterceptor((t) -> brave.serverSpanThreadBinder().setCurrentSpan(serverSpan))
+            // Bind Zipkin Server Span to Feign Thread, but this probably won't work in a real-world scenario
+            // as a concurrent request might override the value set to this thread
+            .requestInterceptor((t) -> BRAVE.serverSpanThreadBinder().setCurrentSpan(serverSpan))
             .logger(new Logger.ErrorLogger()).logLevel(Level.BASIC)
             .target(BonjourService.class, url,
                 () -> "Bonjour response (fallback)");
