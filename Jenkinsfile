@@ -1,7 +1,7 @@
 node {
     stage 'Git checkout'
     echo 'Checking out git repository'
-    git url: 'https://github.com/redhat-helloworld-msa/aloha'
+    checkout scm
 
     stage 'Build project with Maven'
     echo 'Building project'
