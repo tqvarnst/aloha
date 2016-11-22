@@ -68,6 +68,26 @@
           }
         }
       }
-    }
+    },
+    "/aloha-secured" : {
+        "get" : {
+          "summary" : "This is a secured resource",
+          "description" : "",
+          "operationId" : "alohaSecured",
+          "produces" : [ "application/json" ],
+          "parameters" : [ ],
+          "responses" : {
+            "200" : {
+              "description" : "successful operation",
+              "schema" : {
+                "type" : "array",
+                "items" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      }
   }
 }

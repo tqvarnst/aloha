@@ -24,9 +24,9 @@ import org.apache.http.impl.client.HttpClients;
 
 import com.github.kennedyoliveira.hystrix.contrib.vertx.metricsstream.EventMetricsStreamHandler;
 import com.github.kristofa.brave.Brave;
+import com.github.kristofa.brave.Brave.Builder;
 import com.github.kristofa.brave.EmptySpanCollectorMetricsHandler;
 import com.github.kristofa.brave.ServerRequestInterceptor;
-import com.github.kristofa.brave.ServerResponseInterceptor;
 import com.github.kristofa.brave.ServerSpan;
 import com.github.kristofa.brave.http.DefaultSpanNameProvider;
 import com.github.kristofa.brave.http.HttpServerRequestAdapter;
@@ -43,16 +43,34 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.User;
+import io.vertx.ext.auth.oauth2.OAuth2Auth;
+import io.vertx.ext.auth.oauth2.OAuth2FlowType;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
+import io.vertx.ext.web.handler.OAuth2AuthHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 
 public class AlohaVerticle extends AbstractVerticle {
-    private static final Brave BRAVE = new Brave.Builder("aloha")
-            .spanCollector(HttpSpanCollector.create(System.getenv("ZIPKIN_SERVER_URL"), new EmptySpanCollectorMetricsHandler()))
-            .build();
+
+    private static Brave BRAVE = null;
+
+    public AlohaVerticle() {
+        String zipkingServer = System.getenv("ZIPKIN_SERVER_URL");
+        Builder builder = new Brave.Builder("aloha");
+        if (null == zipkingServer) {
+            // Default configuration
+            BRAVE = builder.build();
+        } else {
+            // Brave configured for a Server
+            BRAVE = builder.spanCollector(HttpSpanCollector.create(System.getenv("ZIPKIN_SERVER_URL"),
+                new EmptySpanCollectorMetricsHandler()))
+                .build();
+        }
+    }
 
     @Override
     public void start() throws Exception {
@@ -74,6 +92,24 @@ public class AlohaVerticle extends AbstractVerticle {
         // Aloha EndPoint
         router.get("/api/aloha").handler(ctx -> ctx.response().end(aloha()));
 
+        String keycloackServer = System.getenv("KEYCLOAK_SERVER_URL");
+        if (keycloackServer != null) {
+            JsonObject keycloakJson = new JsonObject()
+                .put("realm", "helloworld-msa")
+                .put("public-client", true)
+                .put("auth-server-url", keycloackServer)
+                .put("ssl-required", "none")
+                .put("resource", "aloha");
+
+            // Initialize the OAuth2 Library
+            OAuth2AuthHandler oauth2 = OAuth2AuthHandler.create(
+                OAuth2Auth.createKeycloak(vertx, OAuth2FlowType.AUTH_CODE, keycloakJson),
+                "http://localhost:8080");
+            oauth2.setupCallback(router.get("/callback"));
+            router.route("/api/aloha-secured").handler(oauth2);
+        }
+        router.get("/api/aloha-secured").handler(ctx -> ctx.response().end(alohaSecured(ctx)));
+
         // Aloha Chained Endpoint
         router.get("/api/aloha-chaining").handler(ctx -> alohaChaining(ctx, (list) -> ctx.response()
             .putHeader("Content-Type", "application/json")
@@ -90,6 +126,13 @@ public class AlohaVerticle extends AbstractVerticle {
 
         vertx.createHttpServer().requestHandler(router::accept).listen(8080);
         System.out.println("Service running at 0.0.0.0:8080");
+    }
+
+    private String alohaSecured(RoutingContext rc) {
+        // this will set the user id as userName
+        User userName = rc.user();
+
+        return "This is a Secured resource. You are loged as " + userName;
     }
 
     private String aloha() {

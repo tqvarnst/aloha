@@ -43,7 +43,7 @@
 
 		<!-- other plugin versions -->
 		<netflix.feign.version>8.15.1</netflix.feign.version>
-		<vertx.version>3.2.1</vertx.version>
+		<vertx.version>3.3.3</vertx.version>
 		<hystrix.version>1.5.1</hystrix.version>
 		<version.exec.plugin>1.4.0</version.exec.plugin>
 		<brave.version>3.9.1</brave.version>
@@ -87,6 +87,11 @@
 		<dependency>
 			<groupId>io.vertx</groupId>
 			<artifactId>vertx-web</artifactId>
+			<version>${vertx.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.vertx</groupId>
+			<artifactId>vertx-auth-oauth2</artifactId>
 			<version>${vertx.version}</version>
 		</dependency>
 		<dependency>
