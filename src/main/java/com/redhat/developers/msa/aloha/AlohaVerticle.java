@@ -44,7 +44,6 @@ import io.vertx.core.Handler;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.oauth2.OAuth2Auth;
 import io.vertx.ext.auth.oauth2.OAuth2FlowType;
 import io.vertx.ext.web.Router;
@@ -99,16 +98,17 @@ public class AlohaVerticle extends AbstractVerticle {
                 .put("public-client", true)
                 .put("auth-server-url", keycloackServer)
                 .put("ssl-required", "none")
-                .put("resource", "aloha");
+                .put("resource", "aloha")
+                .put("credentials", new JsonObject()
+                    .put("secret", "2fbf5e18-b923-4a83-9657-b4ebd5317f60"));
 
-            // Initialize the OAuth2 Library
-            OAuth2AuthHandler oauth2 = OAuth2AuthHandler.create(
+            OAuth2AuthHandler authHandler = OAuth2AuthHandler.create(
                 OAuth2Auth.createKeycloak(vertx, OAuth2FlowType.AUTH_CODE, keycloakJson),
-                "http://localhost:8080");
-            oauth2.setupCallback(router.get("/callback"));
-            router.route("/api/aloha-secured").handler(oauth2);
+                System.getenv("SELF_ROUTE"));
+            authHandler.setupCallback(router.route("/callback"));
+            router.route("/api/aloha-secured").handler(authHandler);
         }
-        router.get("/api/aloha-secured").handler(ctx -> ctx.response().end(alohaSecured(ctx)));
+        router.get("/api/aloha-secured").handler(ctx -> ctx.response().end("This is a secured resource."));
 
         // Aloha Chained Endpoint
         router.get("/api/aloha-chaining").handler(ctx -> alohaChaining(ctx, (list) -> ctx.response()
@@ -118,7 +118,7 @@ public class AlohaVerticle extends AbstractVerticle {
         // Health Check
         router.get("/api/health").handler(ctx -> ctx.response().end("I'm ok"));
 
-        // Hysrix Stream Endpoint
+        // Hystrix Stream Endpoint
         router.get(EventMetricsStreamHandler.DEFAULT_HYSTRIX_PREFIX).handler(EventMetricsStreamHandler.createHandler());
 
         // Static content
@@ -126,13 +126,6 @@ public class AlohaVerticle extends AbstractVerticle {
 
         vertx.createHttpServer().requestHandler(router::accept).listen(8080);
         System.out.println("Service running at 0.0.0.0:8080");
-    }
-
-    private String alohaSecured(RoutingContext rc) {
-        // this will set the user id as userName
-        User userName = rc.user();
-
-        return "This is a Secured resource. You are loged as " + userName;
     }
 
     private String aloha() {
