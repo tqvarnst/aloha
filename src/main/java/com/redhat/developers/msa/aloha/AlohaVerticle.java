@@ -91,7 +91,7 @@ public class AlohaVerticle extends AbstractVerticle {
         // Aloha EndPoint
         router.get("/api/aloha").handler(ctx -> ctx.response().end(aloha()));
 
-        String keycloackServer = System.getenv("KEYCLOAK_SERVER_URL");
+        String keycloackServer = System.getenv("KEYCLOAK_AUTH_SERVER_URL");
         if (keycloackServer != null) {
             JsonObject keycloakJson = new JsonObject()
                 .put("realm", "helloworld-msa")
