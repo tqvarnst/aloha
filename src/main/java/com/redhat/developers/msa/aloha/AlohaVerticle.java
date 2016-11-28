@@ -63,6 +63,7 @@ public class AlohaVerticle extends AbstractVerticle {
         if (null == zipkingServer) {
             // Default configuration
             BRAVE = builder.build();
+            System.out.println("No ZIPKIN_SERVER_URL defined. Printing zipkin traces to console.");
         } else {
             // Brave configured for a Server
             BRAVE = builder.spanCollector(HttpSpanCollector.create(System.getenv("ZIPKIN_SERVER_URL"),
