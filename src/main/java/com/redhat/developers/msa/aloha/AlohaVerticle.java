@@ -17,6 +17,8 @@
 package com.redhat.developers.msa.aloha;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -44,13 +46,13 @@ import io.vertx.core.Handler;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.auth.oauth2.OAuth2Auth;
-import io.vertx.ext.auth.oauth2.OAuth2FlowType;
+import io.vertx.ext.auth.User;
+import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
-import io.vertx.ext.web.handler.OAuth2AuthHandler;
+import io.vertx.ext.web.handler.JWTAuthHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 
 public class AlohaVerticle extends AbstractVerticle {
@@ -86,30 +88,25 @@ public class AlohaVerticle extends AbstractVerticle {
         });
         router.route().handler(BodyHandler.create());
         router.route().handler(CorsHandler.create("*")
-            .allowedMethod(HttpMethod.GET)
-            .allowedHeader("Content-Type"));
+            .allowedMethods(new HashSet<>(Arrays.asList(HttpMethod.values())))
+            .allowedHeader("Origin, X-Requested-With, Content-Type, Accept, Authorization"));
 
         // Aloha EndPoint
         router.get("/api/aloha").handler(ctx -> ctx.response().end(aloha()));
 
         String keycloackServer = System.getenv("KEYCLOAK_AUTH_SERVER_URL");
-        if (keycloackServer != null) {
-            JsonObject keycloakJson = new JsonObject()
-                .put("realm", "helloworld-msa")
-                .put("public-client", true)
-                .put("auth-server-url", keycloackServer)
-                .put("ssl-required", "none")
-                .put("resource", "aloha")
-                .put("credentials", new JsonObject()
-                    .put("secret", "2fbf5e18-b923-4a83-9657-b4ebd5317f60"));
 
-            OAuth2AuthHandler authHandler = OAuth2AuthHandler.create(
-                OAuth2Auth.createKeycloak(vertx, OAuth2FlowType.AUTH_CODE, keycloakJson),
-                System.getenv("SELF_ROUTE"));
-            authHandler.setupCallback(router.route("/callback"));
-            router.route("/api/aloha-secured").handler(authHandler);
+        if (keycloackServer != null) {
+            // Create a JWT Auth Provider
+            JWTAuth jwt = JWTAuth.create(vertx, new JsonObject()
+                .put("public-key",
+                    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArfmb1i36YGxYxusjzpNxmw9a/+M40naa5RxtK826nitmWESF9XiXm6bHLWmRQyhAZluFK4RZDLhQJFZTLpC/w8HdSDETYGqnrP04jL3/pV0Mw1ReKSpzi3tIde+04xGuiQM6nuR84iRraLxtoNyIiqFmHy5pmI9hQhctfZNOVvggntnhXdt/VKuguBXqitFwGbfEgrJTeRvnTkK+rR5MsRDHA3iu2ZYaM4YNAoDbqGyoI4Jdv5Kl1LsP3qESYNeagRz6pIfDZWOoJ58p/TldVt2h70S1bzappbgs8ZbmJXg+pHWcKvNutp5y8nYw30qzU73pX6DW9JS936OB6PiU0QIDAQAB"));
+            router.route("/api/aloha-secured").handler(JWTAuthHandler.create(jwt));
         }
-        router.get("/api/aloha-secured").handler(ctx -> ctx.response().end("This is a secured resource."));
+        router.get("/api/aloha-secured").handler(ctx -> {
+            User user = ctx.user();
+            ctx.response().end("This is a secured resource. You're logged as " + user.principal().getString("name"));   
+        });
 
         // Aloha Chained Endpoint
         router.get("/api/aloha-chaining").handler(ctx -> alohaChaining(ctx, (list) -> ctx.response()
