@@ -5,7 +5,6 @@ ENV AB_ENABLED off
 ENV AB_JOLOKIA_AUTH_OPENSHIFT true
 ENV JAVA_OPTIONS -Xmx256m 
 ENV ZIPKIN_SERVER_URL http://zipkin-query:9411
-ENV SELF_ROUTE http://aloha-helloworld-msa.rhel-cdk.10.1.2.2.xip.io
 
 EXPOSE 8080
 
