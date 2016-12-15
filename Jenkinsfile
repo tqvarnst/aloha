@@ -19,10 +19,7 @@ node () {
         echo 'Building docker image and deploying to Dev'
         buildApp('helloworld-msa-dev', "aloha")
         // Get the build number
-        BUILD_NUMBER = sh (
-            script: "oc get bc/aloha --no-headers=true| awk '{print \$4}'",
-            returnStdout: true
-        ).trim()
+        BUILD_NUMBER = ${env.BUILD_NUMBER}
         echo "This is the build number: ${BUILD_NUMBER}"
     }
 
