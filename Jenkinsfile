@@ -18,7 +18,12 @@ node () {
     stage ('Build image and deploy in Dev'){
         echo 'Building docker image and deploying to Dev'
         buildApp('helloworld-msa-dev', "aloha")
-        echo "This is the build number: ${env.BUILD_NUMBER}"
+        // Get the build number
+        BUILD_NUMBER = sh (
+            script: "oc get bc/aloha --no-headers=true| awk '{print \$4}'",
+            returnStdout: true
+        ).trim()
+        echo "This is the build number: ${BUILD_NUMBER}"
     }
 
     stage ('Automated tests'){
@@ -37,7 +42,7 @@ node () {
 
     stage ('Deploy to production'){
         echo 'Deploying to production'
-        promoteImage('helloworld-msa-dev', 'helloworld-msa', 'aloha', ${env.BUILD_NUMBER})
-        canaryDeploy('aloha', ${env.BUILD_NUMBER})
+        promoteImage('helloworld-msa-dev', 'helloworld-msa', 'aloha', BUILD_NUMBER)
+        canaryDeploy('aloha', BUILD_NUMBER)
     }
 }
