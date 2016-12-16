@@ -18,7 +18,7 @@ node () {
     stage ('Build image and deploy in Dev'){
         echo 'Building docker image and deploying to Dev'
         buildApp('helloworld-msa-dev', "aloha")
-        BUILD_NUMBER = ${env.BUILD_NUMBER}
+        BUILD_NUMBER = env.BUILD_NUMBER
         echo "This is the build number: ${BUILD_NUMBER}"
     }
 
