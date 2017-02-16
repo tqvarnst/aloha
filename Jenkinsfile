@@ -38,6 +38,6 @@ node () {
     stage ('Deploy to production'){
         echo 'Deploying to production'
         promoteImage('helloworld-msa-dev', 'helloworld-msa', 'aloha', env.BUILD_NUMBER)
-        canaryDeploy('aloha', env.BUILD_NUMBER)
+        canaryDeploy('helloworld-msa', 'aloha', env.BUILD_NUMBER)
     }
 }
