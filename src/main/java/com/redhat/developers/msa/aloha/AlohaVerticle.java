@@ -21,26 +21,18 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.HttpClientBuilder;
 
 import com.github.kennedyoliveira.hystrix.contrib.vertx.metricsstream.EventMetricsStreamHandler;
-import com.github.kristofa.brave.Brave;
-import com.github.kristofa.brave.Brave.Builder;
-import com.github.kristofa.brave.EmptySpanCollectorMetricsHandler;
-import com.github.kristofa.brave.ServerRequestInterceptor;
-import com.github.kristofa.brave.ServerSpan;
-import com.github.kristofa.brave.http.DefaultSpanNameProvider;
-import com.github.kristofa.brave.http.HttpServerRequestAdapter;
-import com.github.kristofa.brave.http.HttpServerResponseAdapter;
-import com.github.kristofa.brave.http.HttpSpanCollector;
-import com.github.kristofa.brave.httpclient.BraveHttpRequestInterceptor;
-import com.github.kristofa.brave.httpclient.BraveHttpResponseInterceptor;
 
 import feign.Logger;
 import feign.Logger.Level;
 import feign.httpclient.ApacheHttpClient;
 import feign.hystrix.HystrixFeign;
+import feign.opentracing.TracingClient;
+import io.opentracing.Span;
+import io.opentracing.Tracer;
+import io.opentracing.contrib.spanmanager.DefaultSpanManager;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpMethod;
@@ -57,35 +49,13 @@ import io.vertx.ext.web.handler.StaticHandler;
 
 public class AlohaVerticle extends AbstractVerticle {
 
-    private static Brave BRAVE = null;
-
-    public AlohaVerticle() {
-        String zipkingServer = System.getenv("ZIPKIN_SERVER_URL");
-        Builder builder = new Brave.Builder("aloha");
-        if (null == zipkingServer) {
-            // Default configuration
-            BRAVE = builder.build();
-            System.out.println("No ZIPKIN_SERVER_URL defined. Printing zipkin traces to console.");
-        } else {
-            // Brave configured for a Server
-            BRAVE = builder.spanCollector(HttpSpanCollector.create(System.getenv("ZIPKIN_SERVER_URL"),
-                new EmptySpanCollectorMetricsHandler()))
-                .build();
-        }
-    }
+    private static Tracer tracer = TracingConfiguration.tracer;
 
     @Override
     public void start() throws Exception {
         Router router = Router.router(vertx);
-        router.route().handler(ctx -> {
-            // note: this is *not* an example of how to properly integrate vert.x with zipkin
-            // for a more appropriate way to do that, check the vert.x documentation
-            ServerRequestInterceptor serverRequestInterceptor = BRAVE.serverRequestInterceptor();
-            serverRequestInterceptor.handle(new HttpServerRequestAdapter(new VertxHttpServerRequest(ctx.request()), new DefaultSpanNameProvider()));
-            ctx.data().put("zipkin.span", BRAVE.serverSpanThreadBinder().getCurrentServerSpan());
-            ctx.next();
-            ctx.addBodyEndHandler(v -> BRAVE.serverResponseInterceptor().handle(new HttpServerResponseAdapter(() -> ctx.response().getStatusCode())));
-        });
+        router.route().handler(TracingConfiguration::tracingHandler)
+                .failureHandler(TracingConfiguration::tracingFailureHandler);
         router.route().handler(BodyHandler.create());
         router.route().handler(CorsHandler.create("*")
             .allowedMethods(new HashSet<>(Arrays.asList(HttpMethod.values())))
@@ -153,23 +123,14 @@ public class AlohaVerticle extends AbstractVerticle {
      * @return The feign pointing to the service URL and with Hystrix fallback.
      */
     private BonjourService getNextService(RoutingContext context) {
-        final String serviceName = "bonjour";
-        // This stores the Original/Parent ServerSpan from ZiPkin.
-        final ServerSpan serverSpan = (ServerSpan) context.data().get("zipkin.span");
-        final CloseableHttpClient httpclient =
-            HttpClients.custom()
-                .addInterceptorFirst(new BraveHttpRequestInterceptor(BRAVE.clientRequestInterceptor(), new DefaultSpanNameProvider()))
-                .addInterceptorFirst(new BraveHttpResponseInterceptor(BRAVE.clientResponseInterceptor()))
-                .build();
-        final String url = String.format("http://%s:8080/", serviceName);
+        final Span serverSpan = context.get(TracingConfiguration.ACTIVE_SPAN);
         return HystrixFeign.builder()
             // Use apache HttpClient which contains the ZipKin Interceptors
-            .client(new ApacheHttpClient(httpclient))
-            // Bind Zipkin Server Span to Feign Thread, but this probably won't work in a real-world scenario
-            // as a concurrent request might override the value set to this thread
-            .requestInterceptor((t) -> BRAVE.serverSpanThreadBinder().setCurrentSpan(serverSpan))
+            .client(new TracingClient(new ApacheHttpClient(HttpClientBuilder.create().build()), tracer))
+            // bind span to current thread
+            .requestInterceptor((t) -> DefaultSpanManager.getInstance().activate(serverSpan))
             .logger(new Logger.ErrorLogger()).logLevel(Level.BASIC)
-            .target(BonjourService.class, url,
+            .target(BonjourService.class, "http://bonjour:8080/",
                 () -> "Bonjour response (fallback)");
     }
 
