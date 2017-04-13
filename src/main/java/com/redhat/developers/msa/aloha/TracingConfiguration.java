@@ -4,6 +4,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import com.uber.jaeger.metrics.Metrics;
+import com.uber.jaeger.metrics.NullStatsReporter;
+import com.uber.jaeger.metrics.StatsFactoryImpl;
+import com.uber.jaeger.reporters.RemoteReporter;
+import com.uber.jaeger.samplers.ProbabilisticSampler;
+import com.uber.jaeger.senders.Sender;
+import com.uber.jaeger.senders.UDPSender;
+
 import brave.opentracing.BraveTracer;
 import io.opentracing.NoopTracerFactory;
 import io.opentracing.Span;
@@ -21,23 +29,42 @@ import zipkin.reporter.urlconnection.URLConnectionSender;
  * @author Pavol Loffay
  */
 public class TracingConfiguration {
+    private static final String SERVICE_NAME = "aloha";
+
     public static final String ACTIVE_SPAN = AlohaVerticle.class + ".activeSpan";
-    public static Tracer tracer = tracer();
+    public static final Tracer tracer = tracer();
 
     private TracingConfiguration() {}
 
     private static Tracer tracer() {
-        String zipkinServerUrl = System.getenv("ZIPKIN_SERVER_URL");
-        if (zipkinServerUrl == null) {
-            return NoopTracerFactory.create();
+        String tracingSystem = System.getenv("TRACING_SYSTEM");
+        if ("zipkin".equals(tracingSystem)) {
+            System.out.println("Using Zipkin tracer");
+            return zipkinTracer(System.getenv("ZIPKIN_SERVER_URL"));
+        } else if ("jaeger".equals(tracingSystem)) {
+            System.out.println("Using Jaeger tracer");
+            return jaegerTracer(System.getenv("JAEGER_SERVER_URL"));
         }
 
-        System.out.println("Using Zipkin tracer");
-        Reporter<zipkin.Span> reporter = AsyncReporter.builder(URLConnectionSender.create(zipkinServerUrl +
-                "/api/v1/spans")).build();
-        brave.Tracer braveTracer = brave.Tracer.newBuilder().localServiceName("aloha").reporter(reporter).build();
-        return BraveTracer.wrap(braveTracer);
 
+        System.out.println("Using Noop tracer");
+        return NoopTracerFactory.create();
+    }
+
+    private static Tracer zipkinTracer(String url) {
+        Reporter<zipkin.Span> reporter = AsyncReporter.builder(URLConnectionSender.create(url + "/api/v1/spans"))
+                .build();
+        brave.Tracer braveTracer = brave.Tracer.newBuilder().localServiceName(SERVICE_NAME).reporter(reporter).build();
+        return BraveTracer.wrap(braveTracer);
+    }
+
+    private static Tracer jaegerTracer(String url) {
+        Sender sender = new UDPSender(url, 0, 0);
+        return new com.uber.jaeger.Tracer.Builder(SERVICE_NAME,
+                new RemoteReporter(sender, 100, 50,
+                        new Metrics(new StatsFactoryImpl(new NullStatsReporter()))),
+                new ProbabilisticSampler(1.0))
+                .build();
     }
 
     public static void tracingHandler(RoutingContext routingContext) {

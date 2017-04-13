@@ -43,11 +43,13 @@
 
 		<!-- other plugin versions -->
 		<openfeign.version>9.4.0</openfeign.version>
-		<openfeign.opentracing.version>0.0.1</openfeign.opentracing.version>
+		<version.opentracing>0.21.0</version.opentracing>
+		<openfeign.opentracing.version>0.0.2</openfeign.opentracing.version>
 		<vertx.version>3.3.3</vertx.version>
 		<hystrix.version>1.5.1</hystrix.version>
 		<version.exec.plugin>1.4.0</version.exec.plugin>
-		<brave.opentracing.version>0.19.2</brave.opentracing.version>
+		<version.jaeger>0.18.0</version.jaeger>
+		<brave.opentracing.version>0.19.3</brave.opentracing.version>
 		<zipkin.reporter.version>0.6.12</zipkin.reporter.version>
 
 		<!-- fabric8 version -->
@@ -125,7 +127,7 @@
 		<dependency>
 			<groupId>io.opentracing</groupId>
 			<artifactId>opentracing-noop</artifactId>
-			<version>0.20.10</version>
+			<version>${version.opentracing}</version>
 		</dependency>
 
 		<!-- OpenTracing implementation - Zipkin -->
@@ -138,6 +140,13 @@
 			<groupId>io.zipkin.reporter</groupId>
 			<artifactId>zipkin-sender-urlconnection</artifactId>
 			<version>${zipkin.reporter.version}</version>
+		</dependency>
+
+		<!-- OpenTracing implementation - Jaeger -->
+		<dependency>
+			<groupId>com.uber.jaeger</groupId>
+			<artifactId>jaeger-core</artifactId>
+			<version>${version.jaeger}</version>
 		</dependency>
 	</dependencies>
 

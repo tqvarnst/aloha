@@ -54,8 +54,13 @@ public class AlohaVerticle extends AbstractVerticle {
     @Override
     public void start() throws Exception {
         Router router = Router.router(vertx);
+        // Health Check
+        router.get("/api/health").handler(ctx -> ctx.response().end("I'm ok"));
+
+        // Tracing
         router.route().handler(TracingConfiguration::tracingHandler)
                 .failureHandler(TracingConfiguration::tracingFailureHandler);
+
         router.route().handler(BodyHandler.create());
         router.route().handler(CorsHandler.create("*")
             .allowedMethods(new HashSet<>(Arrays.asList(HttpMethod.values())))
@@ -83,8 +88,6 @@ public class AlohaVerticle extends AbstractVerticle {
             .putHeader("Content-Type", "application/json")
             .end(Json.encode(list))));
 
-        // Health Check
-        router.get("/api/health").handler(ctx -> ctx.response().end("I'm ok"));
 
         // Hystrix Stream Endpoint
         router.get(EventMetricsStreamHandler.DEFAULT_HYSTRIX_PREFIX).handler(EventMetricsStreamHandler.createHandler());
