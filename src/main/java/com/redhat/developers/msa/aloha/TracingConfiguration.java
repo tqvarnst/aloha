@@ -12,7 +12,6 @@ import com.uber.jaeger.samplers.ProbabilisticSampler;
 import com.uber.jaeger.senders.Sender;
 import com.uber.jaeger.senders.UDPSender;
 
-import brave.opentracing.BraveTracer;
 import io.opentracing.NoopTracerFactory;
 import io.opentracing.Span;
 import io.opentracing.SpanContext;
@@ -21,9 +20,6 @@ import io.opentracing.propagation.Format;
 import io.opentracing.propagation.TextMap;
 import io.opentracing.tag.Tags;
 import io.vertx.ext.web.RoutingContext;
-import zipkin.reporter.AsyncReporter;
-import zipkin.reporter.Reporter;
-import zipkin.reporter.urlconnection.URLConnectionSender;
 
 /**
  * @author Pavol Loffay
@@ -37,25 +33,15 @@ public class TracingConfiguration {
     private TracingConfiguration() {}
 
     private static Tracer tracer() {
-        String tracingSystem = System.getenv("TRACING_SYSTEM");
-        if ("zipkin".equals(tracingSystem)) {
-            System.out.println("Using Zipkin tracer");
-            return zipkinTracer(System.getenv("ZIPKIN_SERVER_URL"));
-        } else if ("jaeger".equals(tracingSystem)) {
+        String jaegerURL = System.getenv("JAEGER_SERVER_URL");
+        if (jaegerURL != null) {
             System.out.println("Using Jaeger tracer");
-            return jaegerTracer(System.getenv("JAEGER_SERVER_URL"));
+            return jaegerTracer(jaegerURL);
         }
 
 
         System.out.println("Using Noop tracer");
         return NoopTracerFactory.create();
-    }
-
-    private static Tracer zipkinTracer(String url) {
-        Reporter<zipkin.Span> reporter = AsyncReporter.builder(URLConnectionSender.create(url + "/api/v1/spans"))
-                .build();
-        brave.Tracer braveTracer = brave.Tracer.newBuilder().localServiceName(SERVICE_NAME).reporter(reporter).build();
-        return BraveTracer.wrap(braveTracer);
     }
 
     private static Tracer jaegerTracer(String url) {
@@ -82,6 +68,7 @@ public class TracingConfiguration {
                 .withTag(Tags.SPAN_KIND.getKey(), Tags.SPAN_KIND_SERVER)
                 .withTag(Tags.HTTP_METHOD.getKey(), routingContext.request().method().toString())
                 .withTag(Tags.HTTP_URL.getKey(), routingContext.request().absoluteURI())
+                .withTag(Tags.COMPONENT.getKey(), "vertx")
                 .start();
 
         routingContext.put(ACTIVE_SPAN, span);
