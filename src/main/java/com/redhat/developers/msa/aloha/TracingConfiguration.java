@@ -33,7 +33,7 @@ public class TracingConfiguration {
     private TracingConfiguration() {}
 
     private static Tracer tracer() {
-        String jaegerURL = System.getenv("JAEGER_SERVER_URL");
+        String jaegerURL = System.getenv("JAEGER_SERVER_HOSTNAME");
         if (jaegerURL != null) {
             System.out.println("Using Jaeger tracer");
             return jaegerTracer(jaegerURL);
