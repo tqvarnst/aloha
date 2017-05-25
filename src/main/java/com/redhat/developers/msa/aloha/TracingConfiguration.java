@@ -87,7 +87,7 @@ public class TracingConfiguration {
             Tags.ERROR.set(span, Boolean.TRUE);
 
             if (routingContext.failure() != null) {
-                Map<String, Object> errorLogs = new HashMap(2);
+                Map<String, Object> errorLogs = new HashMap<>(2);
                 errorLogs.put("event", Tags.ERROR.getKey());
                 errorLogs.put("error.object", routingContext.failure());
                 span.log(errorLogs);
