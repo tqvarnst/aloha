@@ -10,9 +10,9 @@ podTemplate(
 
         @Library('github.com/redhat-helloworld-msa/jenkins-library@master') _
         
-        stage ('Git checkout'){
+        stage ('SCM checkout'){
             echo 'Checking out git repository'
-            git url: "https://github.com/redhat-helloworld-msa/aloha"
+            checkout scm
         }
     
         stage ('Maven build'){
