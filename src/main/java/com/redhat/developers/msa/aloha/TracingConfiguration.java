@@ -10,7 +10,7 @@ import com.uber.jaeger.metrics.StatsFactoryImpl;
 import com.uber.jaeger.reporters.RemoteReporter;
 import com.uber.jaeger.samplers.ProbabilisticSampler;
 import com.uber.jaeger.senders.Sender;
-import com.uber.jaeger.senders.UDPSender;
+import com.uber.jaeger.senders.UdpSender;
 
 import io.opentracing.NoopTracerFactory;
 import io.opentracing.Span;
@@ -45,7 +45,7 @@ public class TracingConfiguration {
     }
 
     private static Tracer jaegerTracer(String url) {
-        Sender sender = new UDPSender(url, 0, 0);
+        Sender sender = new UdpSender(url, 0, 0);
         return new com.uber.jaeger.Tracer.Builder(SERVICE_NAME,
                 new RemoteReporter(sender, 100, 50,
                         new Metrics(new StatsFactoryImpl(new NullStatsReporter()))),
